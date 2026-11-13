@@ -2,6 +2,8 @@
 import { useState } from "react";
 import "./Auth.css";
 
+const API_URL = "http://localhost:5000/api";
+
 export default function Auth({ onLogin }) {
   const [page, setPage] = useState("login");
   const [name, setName] = useState("");
@@ -9,59 +11,135 @@ export default function Auth({ onLogin }) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [remember, setRemember] = useState(true);
   const [terms, setTerms] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const isSignup = page === "signup";
 
   function switchPage(nextPage) {
     setPage(nextPage);
     setError("");
+    setSuccess("");
     setPassword("");
     setConfirmPassword("");
+    setShowPassword(false);
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
+
     setError("");
+    setSuccess("");
 
-    if (isSignup && name.trim().length < 2) {
-      return setError("Please enter your full name.");
-    }
+    const cleanName = name.trim();
+    const cleanEmail = email.trim().toLowerCase();
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return setError("Please enter a valid email address.");
-    }
-
-    if (password.length < 8) {
-      return setError("Password must contain at least 8 characters.");
-    }
-
-    if (isSignup && password !== confirmPassword) {
-      return setError("Your passwords do not match.");
-    }
-
-    if (isSignup && !terms) {
-      return setError("Please accept the terms and conditions.");
-    }
-
-    if (!isSignup) {
-      // Demo login: accepts any valid email and password.
-      onLogin({
-        name: email.split("@")[0],
-        email,
-        remember,
-      });
+    // Validate name
+    if (isSignup && cleanName.length < 2) {
+      setError("Please enter your full name (at least 2 characters).");
       return;
     }
 
-    // Demo signup: does not create a real account.
-    onLogin({
-      name: name.trim(),
-      email,
-      remember,
-    });
+    // Validate email
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailPattern.test(cleanEmail)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    // Validate password
+    if (password.length < 8) {
+      setError("Password must contain at least 8 characters.");
+      return;
+    }
+
+    // Additional signup validation
+    if (isSignup) {
+      if (!/[A-Z]/.test(password)) {
+        setError("Password must contain at least one uppercase letter.");
+        return;
+      }
+
+      if (!/[a-z]/.test(password)) {
+        setError("Password must contain at least one lowercase letter.");
+        return;
+      }
+
+      if (!/[0-9]/.test(password)) {
+        setError("Password must contain at least one number.");
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        setError("Your passwords do not match.");
+        return;
+      }
+
+      if (!terms) {
+        setError("Please accept the terms and conditions.");
+        return;
+      }
+    }
+
+    setSubmitting(true);
+
+    try {
+      const endpoint = isSignup ? "signup" : "login";
+
+      const body = isSignup
+        ? {
+            name: cleanName,
+            email: cleanEmail,
+            password,
+          }
+        : {
+            email: cleanEmail,
+            password,
+          };
+
+      const response = await fetch(`${API_URL}/auth/${endpoint}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Something went wrong.");
+      }
+
+      if (isSignup) {
+        // Signup creates the account, then asks the user to log in.
+        setPage("login");
+        setName("");
+        setPassword("");
+        setConfirmPassword("");
+        setTerms(false);
+
+        setSuccess(
+          "Account created successfully! Please sign in with your new account."
+        );
+      } else {
+        // Login succeeded and the backend created a session.
+        onLogin(data.user);
+      }
+    } catch (error) {
+      console.error("Authentication error:", error);
+
+      setError(
+        error.message ||
+          "Unable to connect to the server. Please try again."
+      );
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -69,11 +147,15 @@ export default function Auth({ onLogin }) {
       <section className="auth-visual">
         <div className="auth-brand">
           <div className="auth-logo">L</div>
-          <span>Life<span className="brand-green">Budget</span></span>
+          <span>
+            Life<span className="brand-green">Budget</span>
+          </span>
         </div>
 
         <div className="auth-visual-content">
-          <span className="auth-eyebrow">SMARTER MONEY MANAGEMENT</span>
+          <span className="auth-eyebrow">
+            SMARTER MONEY MANAGEMENT
+          </span>
 
           <h1>
             Your money.
@@ -97,10 +179,16 @@ export default function Auth({ onLogin }) {
           <div className="auth-visual-card">
             <span>YOUR FINANCIAL JOURNEY</span>
             <strong>Small steps. Better finances.</strong>
+
             <div className="auth-mini-bars">
-              {[35, 55, 42, 70, 60, 90, 75, 100].map((height, i) => (
-                <div key={i} style={{ height: `${height}%` }} />
-              ))}
+              {[35, 55, 42, 70, 60, 90, 75, 100].map(
+                (height, i) => (
+                  <div
+                    key={i}
+                    style={{ height: `${height}%` }}
+                  />
+                )
+              )}
             </div>
           </div>
         </div>
@@ -123,7 +211,9 @@ export default function Auth({ onLogin }) {
             </span>
 
             <h2>
-              {isSignup ? "Create your account" : "Sign in to LifeBudget"}
+              {isSignup
+                ? "Create your account"
+                : "Sign in to LifeBudget"}
             </h2>
 
             <p>
@@ -133,16 +223,24 @@ export default function Auth({ onLogin }) {
             </p>
           </div>
 
-          <form className="auth-form" onSubmit={handleSubmit}>
+          <form
+            className="auth-form"
+            onSubmit={handleSubmit}
+            noValidate
+          >
             {isSignup && (
               <>
                 <label htmlFor="auth-name">Full name</label>
+
                 <input
                   id="auth-name"
                   type="text"
                   placeholder="John Doe"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    setError("");
+                  }}
                   autoComplete="name"
                   required
                 />
@@ -150,12 +248,16 @@ export default function Auth({ onLogin }) {
             )}
 
             <label htmlFor="auth-email">Email address</label>
+
             <input
               id="auth-email"
               type="email"
               placeholder="you@example.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setError("");
+              }}
               autoComplete="email"
               required
             />
@@ -167,7 +269,9 @@ export default function Auth({ onLogin }) {
                 <button
                   type="button"
                   onClick={() =>
-                    setError("Password recovery will be available after backend integration.")
+                    setError(
+                      "Password recovery will be available in a future update."
+                    )
                   }
                 >
                   Forgot password?
@@ -181,14 +285,22 @@ export default function Auth({ onLogin }) {
                 type={showPassword ? "text" : "password"}
                 placeholder="Minimum 8 characters"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete={isSignup ? "new-password" : "current-password"}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setError("");
+                }}
+                autoComplete={
+                  isSignup ? "new-password" : "current-password"
+                }
                 required
               />
 
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
+                aria-label={
+                  showPassword ? "Hide password" : "Show password"
+                }
               >
                 {showPassword ? "Hide" : "Show"}
               </button>
@@ -196,56 +308,76 @@ export default function Auth({ onLogin }) {
 
             {isSignup && (
               <>
-                <label htmlFor="auth-confirm">Confirm password</label>
-                <input
-                  id="auth-confirm"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Enter password again"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  autoComplete="new-password"
-                  required
-                />
+                <label htmlFor="auth-confirm">
+                  Confirm password
+                </label>
+
+                <div className="auth-password-wrapper">
+                  <input
+                    id="auth-confirm"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter password again"
+                    value={confirmPassword}
+                    onChange={(e) => {
+                      setConfirmPassword(e.target.value);
+                      setError("");
+                    }}
+                    autoComplete="new-password"
+                    required
+                  />
+                </div>
 
                 <label className="auth-checkbox">
                   <input
                     type="checkbox"
                     checked={terms}
-                    onChange={(e) => setTerms(e.target.checked)}
+                    onChange={(e) => {
+                      setTerms(e.target.checked);
+                      setError("");
+                    }}
                   />
-                  <span>I agree to the Terms and Privacy Policy.</span>
+                  <span>
+                    I agree to the Terms and Privacy Policy.
+                  </span>
                 </label>
               </>
             )}
 
-            {!isSignup && (
-              <label className="auth-checkbox">
-                <input
-                  type="checkbox"
-                  checked={remember}
-                  onChange={(e) => setRemember(e.target.checked)}
-                />
-                <span>Remember me</span>
-              </label>
-            )}
-
             {error && (
               <div className="auth-error" role="alert">
-                {error}
+                <span>⚠</span> {error}
               </div>
             )}
 
-            <button className="auth-submit" type="submit">
-              {isSignup ? "Create Account →" : "Sign In →"}
+            {success && (
+              <div className="auth-success" role="status">
+                {success}
+              </div>
+            )}
+
+            <button
+              className="auth-submit"
+              type="submit"
+              disabled={submitting}
+            >
+              {submitting
+                ? "Please wait..."
+                : isSignup
+                  ? "Create Account →"
+                  : "Sign In →"}
             </button>
           </form>
 
           <div className="auth-switch">
-            {isSignup ? "Already have an account?" : "New to LifeBudget?"}
+            {isSignup
+              ? "Already have an account?"
+              : "New to LifeBudget?"}
 
             <button
               type="button"
-              onClick={() => switchPage(isSignup ? "login" : "signup")}
+              onClick={() =>
+                switchPage(isSignup ? "login" : "signup")
+              }
             >
               {isSignup ? "Sign in" : "Create account"}
             </button>
@@ -253,7 +385,7 @@ export default function Auth({ onLogin }) {
 
           <div className="auth-security-note">
             <span>🔒</span>
-            Demo authentication. Real account security is not yet implemented.
+            Your account is protected by secure server-side authentication.
           </div>
         </div>
       </section>
