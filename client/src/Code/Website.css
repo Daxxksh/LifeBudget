@@ -1,53 +1,28 @@
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
-
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-:root {
-  font-family: 'DM Sans', sans-serif;
-  color: #202B25;
-  background: #F7F9F7;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-}
-
-body {
-  min-width: 320px;
-  min-height: 100vh;
-}
-
-button, input, select {
-  font: inherit;
-}
-
-button {
-  cursor: pointer;
-}
-
 .lb-app {
   min-height: 100vh;
   display: flex;
   background: #F7F9F7;
+  color: #202B25;
+  font-family: "DM Sans", sans-serif;
 }
-
-/* SIDEBAR */
 
 .lb-sidebar {
   width: 250px;
   flex-shrink: 0;
-  background: #FFFFFF;
+  background: #fff;
   border-right: 1px solid #E9EEE9;
   padding: 28px 18px;
   display: flex;
   flex-direction: column;
   position: fixed;
-  top: 0;
-  bottom: 0;
-  left: 0;
+  inset: 0 auto 0 0;
   z-index: 10;
 }
 
@@ -59,11 +34,10 @@ button {
   font-weight: 800;
   margin-bottom: 54px;
   padding-left: 7px;
-  letter-spacing: -0.8px;
 }
 
 .lb-brand > span > span {
-  color: #16966B;
+  color: #159B72;
 }
 
 .lb-brand-icon {
@@ -105,7 +79,7 @@ button {
   font-size: 13px;
   font-weight: 600;
   text-align: left;
-  transition: .2s;
+  cursor: pointer;
 }
 
 .lb-nav-item:hover {
@@ -116,7 +90,6 @@ button {
 .lb-nav-item.active {
   background: #EAF6EF;
   color: #12865F;
-  font-weight: 700;
 }
 
 .lb-nav-icon {
@@ -153,12 +126,14 @@ button {
   margin: 6px 0 12px;
 }
 
-.lb-help-card button {
+.lb-help-card button,
+.lb-text-button {
   background: none;
   border: none;
   color: #159B72;
   font-size: 11px;
   font-weight: 700;
+  cursor: pointer;
 }
 
 .lb-profile {
@@ -166,16 +141,18 @@ button {
   padding-top: 17px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
 }
 
-.lb-avatar, .lb-header-avatar {
+.lb-avatar,
+.lb-header-avatar {
   background: #E4F0E8;
   color: #21845F;
   border-radius: 50%;
   display: grid;
   place-items: center;
   font-weight: 700;
+  flex-shrink: 0;
 }
 
 .lb-avatar {
@@ -189,10 +166,13 @@ button {
   flex-direction: column;
   gap: 3px;
   flex: 1;
+  min-width: 0;
 }
 
 .lb-profile-info strong {
   font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .lb-profile-info span {
@@ -200,11 +180,18 @@ button {
   font-size: 10px;
 }
 
-.lb-dots {
-  color: #89938B;
+.lb-logout {
+  border: none;
+  background: #FFF1EF;
+  color: #C76D5D;
+  border-radius: 6px;
+  padding: 7px 9px;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
 }
 
-/* MAIN CONTENT */
+/* MAIN */
 
 .lb-main {
   width: calc(100% - 250px);
@@ -230,7 +217,6 @@ button {
 .lb-header h1 {
   font-size: 24px;
   font-weight: 800;
-  letter-spacing: -0.6px;
 }
 
 .lb-header-actions {
@@ -241,21 +227,11 @@ button {
 
 .lb-month-select {
   padding: 10px 13px;
-  background: #FFFFFF;
+  background: #fff;
   border: 1px solid #E9EEE9;
   border-radius: 8px;
   font-size: 11px;
   color: #67736A;
-}
-
-.lb-notification {
-  background: #FFFFFF;
-  border: 1px solid #E9EEE9;
-  border-radius: 9px;
-  width: 37px;
-  height: 37px;
-  color: #68756B;
-  font-size: 19px;
 }
 
 .lb-header-avatar {
@@ -274,7 +250,6 @@ button {
 .lb-welcome h2 {
   font-size: 21px;
   font-weight: 800;
-  letter-spacing: -.5px;
 }
 
 .lb-welcome p {
@@ -285,21 +260,21 @@ button {
 
 .lb-primary-button {
   background: #159B72;
-  color: #FFFFFF;
+  color: #fff;
   border: 0;
   padding: 12px 17px;
   border-radius: 8px;
   font-size: 12px;
   font-weight: 700;
+  cursor: pointer;
   transition: .2s;
 }
 
 .lb-primary-button:hover {
   background: #107D5B;
-  transform: translateY(-1px);
 }
 
-/* STAT CARDS */
+/* STATS */
 
 .lb-stats-grid {
   display: grid;
@@ -307,13 +282,17 @@ button {
   gap: 17px;
 }
 
-.lb-stat-card {
-  background: #FFFFFF;
+.lb-stat-card,
+.lb-panel {
+  background: #fff;
   border: 1px solid #E9EEE9;
-  padding: 19px;
   border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(30,65,40,.025);
+}
+
+.lb-stat-card {
+  padding: 19px;
   min-width: 0;
-  box-shadow: 0 2px 8px rgba(30, 65, 40, .025);
 }
 
 .lb-stat-top {
@@ -344,18 +323,15 @@ button {
   font-size: 23px;
   margin-top: 18px;
   font-weight: 800;
-  letter-spacing: -.8px;
   overflow-wrap: anywhere;
 }
 
 .lb-stat-footer {
   font-size: 10px;
   margin-top: 10px;
+  color: #159B72;
   font-weight: 600;
 }
-
-.positive { color: #159B72; }
-.negative { color: #D98A59; }
 
 /* PANELS */
 
@@ -367,12 +343,8 @@ button {
 }
 
 .lb-panel {
-  background: #FFFFFF;
-  border: 1px solid #E9EEE9;
-  border-radius: 12px;
   padding: 23px;
   min-width: 0;
-  box-shadow: 0 2px 8px rgba(30, 65, 40, .025);
 }
 
 .lb-panel-header {
@@ -391,15 +363,6 @@ button {
   font-size: 10px;
   color: #9AA49C;
   margin-top: 6px;
-}
-
-.lb-text-button {
-  border: none;
-  background: none;
-  color: #159B72;
-  font-size: 11px;
-  font-weight: 700;
-  white-space: nowrap;
 }
 
 .lb-chart-period {
@@ -455,7 +418,6 @@ button {
   flex: 1;
   display: flex;
   justify-content: space-around;
-  align-items: stretch;
   background: repeating-linear-gradient(
     to bottom,
     transparent 0,
@@ -486,7 +448,6 @@ button {
   width: min(19px, 32%);
   min-height: 2px;
   border-radius: 4px 4px 0 0;
-  transition: height .3s;
 }
 
 .income-bar { background: #159B72; }
@@ -546,6 +507,22 @@ button {
   border-radius: 20px;
 }
 
+.lb-budget-large {
+  padding: 20px 0;
+  border-bottom: 1px solid #EDF0ED;
+}
+
+.lb-budget-large .lb-budget-info {
+  font-size: 12px;
+  margin-bottom: 13px;
+}
+
+.lb-budget-large p {
+  font-size: 10px;
+  color: #98A29A;
+  margin-top: 8px;
+}
+
 /* TRANSACTIONS */
 
 .lb-transactions-panel {
@@ -570,7 +547,6 @@ button {
   font-weight: 700;
   padding: 13px 10px;
   border-bottom: 1px solid #EDF0ED;
-  letter-spacing: .5px;
 }
 
 .lb-table td {
@@ -633,6 +609,7 @@ button {
   width: 25px;
   height: 25px;
   font-size: 17px;
+  cursor: pointer;
 }
 
 .lb-empty {
@@ -655,7 +632,7 @@ button {
   padding: 11px 13px;
   border: 1px solid #E5EAE5;
   border-radius: 8px;
-  background: #FFFFFF;
+  background: #fff;
   color: #536057;
   font-size: 11px;
   outline: none;
@@ -666,12 +643,7 @@ button {
   min-width: 0;
 }
 
-.lb-filters input:focus,
-.lb-filters select:focus {
-  border-color: #159B72;
-}
-
-/* SAVINGS GOALS */
+/* SAVINGS */
 
 .lb-goals-grid {
   display: grid;
@@ -700,28 +672,6 @@ button {
   display: block;
   font-size: 11px;
   margin-bottom: 13px;
-}
-
-/* BUDGET PAGE */
-
-.lb-budget-page {
-  margin-top: 15px;
-}
-
-.lb-budget-large {
-  padding: 20px 0;
-  border-bottom: 1px solid #EDF0ED;
-}
-
-.lb-budget-large .lb-budget-info {
-  font-size: 12px;
-  margin-bottom: 13px;
-}
-
-.lb-budget-large p {
-  font-size: 10px;
-  color: #98A29A;
-  margin-top: 8px;
 }
 
 /* REPORTS */
@@ -756,7 +706,7 @@ button {
 .lb-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(25, 40, 30, .45);
+  background: rgba(25,40,30,.45);
   display: grid;
   place-items: center;
   z-index: 30;
@@ -764,7 +714,7 @@ button {
 }
 
 .lb-modal {
-  background: #FFFFFF;
+  background: #fff;
   width: 100%;
   max-width: 430px;
   border-radius: 15px;
@@ -774,7 +724,6 @@ button {
   gap: 12px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, .15);
 }
 
 .lb-modal-header {
@@ -800,7 +749,7 @@ button {
   border-radius: 6px;
   width: 29px;
   height: 29px;
-  color: #667269;
+  cursor: pointer;
 }
 
 .lb-modal label {
@@ -817,12 +766,7 @@ button {
   border-radius: 8px;
   font-size: 12px;
   outline: none;
-  background: #FFFFFF;
-}
-
-.lb-modal input:focus,
-.lb-modal select:focus {
-  border-color: #159B72;
+  background: #fff;
 }
 
 .lb-submit-button {
@@ -842,7 +786,7 @@ button {
   font-size: 10px;
 }
 
-/* RESPONSIVE DESIGN */
+/* RESPONSIVE */
 
 @media (max-width: 1150px) {
   .lb-main {
@@ -871,9 +815,8 @@ button {
   }
 
   .lb-brand > span,
-  .lb-nav-label,
-  .lb-nav-item:not(.active) {
-    font-size: 0;
+  .lb-nav-label {
+    display: none;
   }
 
   .lb-nav-item {
@@ -918,10 +861,6 @@ button {
     font-size: 17px;
   }
 
-  .lb-stats-grid {
-    gap: 10px;
-  }
-
   .lb-stat-card {
     padding: 13px;
   }
@@ -946,22 +885,15 @@ button {
 
 @media (max-width: 420px) {
   .lb-stats-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
   }
 
   .lb-stat-card h2 {
-    font-size: 17px;
+    font-size: 16px;
   }
 
   .lb-report-grid {
     grid-template-columns: 1fr;
-  }
-
-  .lb-panel-header {
-    align-items: flex-start;
-  }
-
-  .lb-chart-period {
-    font-size: 9px;
   }
 }
