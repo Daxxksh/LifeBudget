@@ -10,7 +10,6 @@ async function signup(req, res) {
   try {
     const { name, email, password } = req.body;
 
-    // Check required fields
     if (
       typeof name !== "string" ||
       typeof email !== "string" ||
@@ -25,7 +24,6 @@ async function signup(req, res) {
     const cleanName = name.trim();
     const cleanEmail = email.trim().toLowerCase();
 
-    // Validate name
     if (cleanName.length < 2 || cleanName.length > 100) {
       return res.status(400).json({
         success: false,
@@ -33,31 +31,25 @@ async function signup(req, res) {
       });
     }
 
-    // Validate email
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    if (
-      !emailPattern.test(cleanEmail) ||
-      cleanEmail.length > 255
-    ) {
+    if (!emailPattern.test(cleanEmail) || cleanEmail.length > 255) {
       return res.status(400).json({
         success: false,
         message: "Please enter a valid email address.",
       });
     }
 
-    // Validate password
     if (
       password.length < 8 ||
       Buffer.byteLength(password, "utf8") > 72
     ) {
       return res.status(400).json({
         success: false,
-        message: "Password must be at least 8 characters.",
+        message: "Password must contain 8 to 72 bytes.",
       });
     }
 
-    // Check existing email
     const existingUser = await pool.query(
       "SELECT id FROM users WHERE email = $1",
       [cleanEmail]
@@ -70,10 +62,8 @@ async function signup(req, res) {
       });
     }
 
-    // Hash password
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Save user
     const result = await pool.query(
       `INSERT INTO users (name, email, password_hash)
        VALUES ($1, $2, $3)
@@ -81,16 +71,14 @@ async function signup(req, res) {
       [cleanName, cleanEmail, passwordHash]
     );
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: "Account created successfully!",
       user: result.rows[0],
     });
-
   } catch (error) {
     console.error("Signup error:", error.message);
 
-    // Handle duplicate email
     if (error.code === "23505") {
       return res.status(409).json({
         success: false,
@@ -98,7 +86,7 @@ async function signup(req, res) {
       });
     }
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Registration failed. Please try again.",
     });
@@ -127,9 +115,8 @@ async function login(req, res) {
 
     const cleanEmail = email.trim().toLowerCase();
 
-    // Find user by email
     const result = await pool.query(
-      "SELECT * FROM users WHERE email = $1",
+      "SELECT id, name, email, password_hash FROM users WHERE email = $1",
       [cleanEmail]
     );
 
@@ -142,7 +129,6 @@ async function login(req, res) {
 
     const user = result.rows[0];
 
-    // Compare entered password with stored hash
     const passwordMatches = await bcrypt.compare(
       password,
       user.password_hash
@@ -155,7 +141,7 @@ async function login(req, res) {
       });
     }
 
-    // Regenerate session to prevent session fixation
+    // Create a fresh session after successful authentication
     await new Promise((resolve, reject) => {
       req.session.regenerate((error) => {
         if (error) reject(error);
@@ -163,10 +149,10 @@ async function login(req, res) {
       });
     });
 
-    // Store authenticated user ID in session
+    // Store the authenticated user ID
     req.session.userId = user.id;
 
-    // Save session before responding
+    // Save the session before sending the response
     await new Promise((resolve, reject) => {
       req.session.save((error) => {
         if (error) reject(error);
@@ -174,7 +160,7 @@ async function login(req, res) {
       });
     });
 
-    res.json({
+    return res.status(200).json({
       success: true,
       message: "Login successful!",
       user: {
@@ -183,11 +169,10 @@ async function login(req, res) {
         email: user.email,
       },
     });
-
   } catch (error) {
     console.error("Login error:", error.message);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Login failed. Please try again.",
     });
@@ -200,7 +185,9 @@ async function login(req, res) {
 
 async function getCurrentUser(req, res) {
   try {
-    if (!req.session.userId) {
+    const userId = req.session?.userId;
+
+    if (!userId) {
       return res.status(401).json({
         success: false,
         message: "You are not logged in.",
@@ -211,7 +198,7 @@ async function getCurrentUser(req, res) {
       `SELECT id, name, email
        FROM users
        WHERE id = $1`,
-      [req.session.userId]
+      [userId]
     );
 
     if (result.rows.length === 0) {
@@ -221,15 +208,14 @@ async function getCurrentUser(req, res) {
       });
     }
 
-    res.json({
+    return res.status(200).json({
       success: true,
       user: result.rows[0],
     });
-
   } catch (error) {
     console.error("Current user error:", error.message);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Could not verify user.",
     });
@@ -242,7 +228,7 @@ async function getCurrentUser(req, res) {
 
 function logout(req, res) {
   if (!req.session) {
-    return res.json({
+    return res.status(200).json({
       success: true,
       message: "Already logged out.",
     });
@@ -264,7 +250,7 @@ function logout(req, res) {
       sameSite: "lax",
     });
 
-    res.json({
+    return res.status(200).json({
       success: true,
       message: "Logged out successfully!",
     });

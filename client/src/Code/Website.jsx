@@ -1,21 +1,15 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./Website.css";
 
-const startingTransactions = [
-  { id: 1, title: "Monthly Salary", category: "Income", date: "Nov 12, 2026", amount: 1850, type: "income", icon: "💼" },
-  { id: 2, title: "Apartment Rent", category: "Housing", date: "Nov 10, 2026", amount: 650, type: "expense", icon: "🏠" },
-  { id: 3, title: "Grocery Shopping", category: "Food", date: "Nov 09, 2026", amount: 78.5, type: "expense", icon: "🛒" },
-  { id: 4, title: "Deutschlandticket", category: "Transport", date: "Nov 08, 2026", amount: 58, type: "expense", icon: "🚆" },
-  { id: 5, title: "Netflix Subscription", category: "Entertainment", date: "Nov 06, 2026", amount: 13.99, type: "expense", icon: "🎬" },
-  { id: 6, title: "Freelance Payment", category: "Income", date: "Nov 04, 2026", amount: 320, type: "income", icon: "💻" },
-];
+const API_URL = "http://localhost:5000/api";
 
-const budgets = [
-  { name: "Housing", spent: 650, limit: 750, color: "#5688E8", icon: "🏠" },
-  { name: "Food & Groceries", spent: 245, limit: 350, color: "#F2A84B", icon: "🛒" },
-  { name: "Transport", spent: 58, limit: 100, color: "#9A78D8", icon: "🚆" },
-  { name: "Entertainment", spent: 85, limit: 120, color: "#E47D94", icon: "🎮" },
+// Monthly spending limits. The "spent" amount is calculated from real transactions below.
+const budgetSettings = [
+  { name: "Housing", category: "Housing", limit: 750, color: "#5688E8", icon: "🏠" },
+  { name: "Food & Groceries", category: "Food", limit: 350, color: "#F2A84B", icon: "🛒" },
+  { name: "Transport", category: "Transport", limit: 100, color: "#9A78D8", icon: "🚆" },
+  { name: "Entertainment", category: "Entertainment", limit: 120, color: "#E47D94", icon: "🎮" },
 ];
 
 const chartData = [
@@ -27,33 +21,119 @@ const chartData = [
   { month: "Nov", income: 2170, expenses: 1120 },
 ];
 
+const emptyForm = {
+  title: "",
+  category: "Food",
+  amount: "",
+  type: "expense",
+  description: "",
+  transaction_date: new Date().toISOString().slice(0, 10),
+};
+
 const money = (amount) =>
   new Intl.NumberFormat("de-DE", {
     style: "currency",
     currency: "EUR",
   }).format(amount);
 
+function formatDate(dateValue) {
+  if (!dateValue) return "—";
+
+  const datePart = String(dateValue).slice(0, 10);
+  const date = new Date(`${datePart}T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return date.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function getTransactionIcon(category, type) {
+  if (type === "income") return "💰";
+
+  const icons = {
+    Food: "🛒",
+    Housing: "🏠",
+    Transport: "🚆",
+    Entertainment: "🎬",
+    Shopping: "🛍️",
+    Health: "💊",
+    Salary: "💼",
+    Other: "💳",
+  };
+
+  return icons[category] || "💳";
+}
+
+function mapTransaction(transaction) {
+  return {
+    ...transaction,
+    amount: Number(transaction.amount),
+    date: formatDate(transaction.transaction_date),
+    icon: getTransactionIcon(transaction.category, transaction.type),
+  };
+}
+
 export default function Website({ user, onLogout }) {
   const [activePage, setActivePage] = useState("Dashboard");
-  const [transactions, setTransactions] = useState(startingTransactions);
+  const [transactions, setTransactions] = useState([]);
+
   const [showModal, setShowModal] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState(null);
+
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
 
-  const [form, setForm] = useState({
-    title: "",
-    category: "Food",
-    amount: "",
-    type: "expense",
-  });
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const [form, setForm] = useState(emptyForm);
+
+  // Fetch transactions from PostgreSQL
+  async function fetchTransactions() {
+    try {
+      setError("");
+
+      const response = await fetch(`${API_URL}/transactions`, {
+        method: "GET",
+        credentials: "include",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Could not load transactions.");
+      }
+
+      setTransactions((data.transactions || []).map(mapTransaction));
+    } catch (error) {
+      console.error("Fetch transactions error:", error);
+      setError(error.message || "Could not connect to the server.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Load transactions when dashboard opens
+  useEffect(() => {
+    fetchTransactions();
+  }, []);
+
+  // Calculate dashboard totals
   const totalIncome = transactions
-    .filter((t) => t.type === "income")
-    .reduce((sum, t) => sum + t.amount, 0);
+    .filter((transaction) => transaction.type === "income")
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
 
   const totalExpenses = transactions
-    .filter((t) => t.type === "expense")
-    .reduce((sum, t) => sum + t.amount, 0);
+    .filter((transaction) => transaction.type === "expense")
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
 
   const balance = totalIncome - totalExpenses;
 
@@ -61,58 +141,202 @@ export default function Website({ user, onLogout }) {
     ? Math.round((balance / totalIncome) * 100)
     : 0;
 
-  const filteredTransactions = transactions.filter((t) => {
+  // Calculate this month's spending for each budget category.
+  const today = new Date();
+  const currentMonth = today.getMonth();
+  const currentYear = today.getFullYear();
+
+  const budgets = budgetSettings.map((budget) => {
+    const spent = transactions
+      .filter((transaction) => {
+        if (transaction.type !== "expense" || transaction.category !== budget.category) {
+          return false;
+        }
+
+        const transactionDate = new Date(
+          `${String(transaction.transaction_date).slice(0, 10)}T00:00:00`
+        );
+
+        return (
+          !Number.isNaN(transactionDate.getTime()) &&
+          transactionDate.getMonth() === currentMonth &&
+          transactionDate.getFullYear() === currentYear
+        );
+      })
+      .reduce((sum, transaction) => sum + transaction.amount, 0);
+
+    return { ...budget, spent };
+  });
+
+  // Search and filter
+  const filteredTransactions = transactions.filter((transaction) => {
     const matchesSearch =
-      t.title.toLowerCase().includes(search.toLowerCase()) ||
-      t.category.toLowerCase().includes(search.toLowerCase());
+      transaction.title.toLowerCase().includes(search.toLowerCase()) ||
+      transaction.category.toLowerCase().includes(search.toLowerCase());
 
     const matchesFilter =
       filter === "All" ||
-      (filter === "Income" && t.type === "income") ||
-      (filter === "Expenses" && t.type === "expense");
+      (filter === "Income" && transaction.type === "income") ||
+      (filter === "Expenses" && transaction.type === "expense");
 
     return matchesSearch && matchesFilter;
   });
 
-  function addTransaction(e) {
+  // Open Add Transaction modal
+  function openAddModal() {
+    setEditingTransaction(null);
+    setForm({
+      ...emptyForm,
+      transaction_date: new Date().toISOString().slice(0, 10),
+    });
+    setError("");
+    setSuccess("");
+    setShowModal(true);
+  }
+
+  // Open Edit Transaction modal
+  function openEditModal(transaction) {
+    setEditingTransaction(transaction);
+
+    setForm({
+      title: transaction.title,
+      category: transaction.category,
+      amount: String(transaction.amount),
+      type: transaction.type,
+      description: transaction.description || "",
+      transaction_date: transaction.transaction_date
+        ? String(transaction.transaction_date).slice(0, 10)
+        : new Date().toISOString().slice(0, 10),
+    });
+
+    setError("");
+    setSuccess("");
+    setShowModal(true);
+  }
+
+  // Close modal
+  function closeModal() {
+    if (submitting) return;
+
+    setShowModal(false);
+    setEditingTransaction(null);
+    setForm(emptyForm);
+  }
+
+  // Add or update transaction
+  async function saveTransaction(e) {
     e.preventDefault();
 
     const amount = Number(form.amount);
 
     if (!form.title.trim() || !Number.isFinite(amount) || amount <= 0) {
+      setError("Please enter a valid title and amount.");
       return;
     }
 
-    const newTransaction = {
-      id: Date.now(),
-      title: form.title.trim(),
-      category: form.category,
-      amount,
-      type: form.type,
-      icon: form.type === "income" ? "💰" : "💳",
-      date: new Date().toLocaleDateString("en-GB", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      }),
-    };
+    try {
+      setSubmitting(true);
+      setError("");
+      setSuccess("");
 
-    setTransactions((previous) => [newTransaction, ...previous]);
+      const isEditing = Boolean(editingTransaction);
 
-    setForm({
-      title: "",
-      category: "Food",
-      amount: "",
-      type: "expense",
-    });
+      const url = isEditing
+        ? `${API_URL}/transactions/${editingTransaction.id}`
+        : `${API_URL}/transactions`;
 
-    setShowModal(false);
+      const response = await fetch(url, {
+        method: isEditing ? "PUT" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          title: form.title.trim(),
+          amount,
+          type: form.type,
+          category: form.category,
+          description: form.description.trim() || null,
+          transaction_date: form.transaction_date,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message ||
+            (isEditing
+              ? "Could not update transaction."
+              : "Could not create transaction.")
+        );
+      }
+
+      if (isEditing) {
+        setTransactions((previous) =>
+          previous.map((transaction) =>
+            transaction.id === editingTransaction.id
+              ? mapTransaction(data.transaction)
+              : transaction
+          )
+        );
+
+        setSuccess("Transaction updated successfully!");
+      } else {
+        setTransactions((previous) => [
+          mapTransaction(data.transaction),
+          ...previous,
+        ]);
+
+        setSuccess("Transaction added successfully!");
+      }
+
+      setShowModal(false);
+      setEditingTransaction(null);
+      setForm(emptyForm);
+    } catch (error) {
+      console.error("Save transaction error:", error);
+      setError(error.message || "Could not save transaction.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
-  function deleteTransaction(id) {
-    setTransactions((previous) =>
-      previous.filter((t) => t.id !== id)
+  // Delete transaction
+  async function deleteTransaction(id) {
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this transaction?"
     );
+
+    if (!confirmed) return;
+
+    try {
+      setDeletingId(id);
+      setError("");
+      setSuccess("");
+
+      const response = await fetch(`${API_URL}/transactions/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Could not delete transaction.");
+      }
+
+      setTransactions((previous) =>
+        previous.filter((transaction) => transaction.id !== id)
+      );
+
+      setSuccess("Transaction deleted successfully!");
+    } catch (error) {
+      console.error("Delete transaction error:", error);
+      setError(error.message || "Could not delete transaction.");
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   const navItems = [
@@ -128,7 +352,9 @@ export default function Website({ user, onLogout }) {
       <aside className="lb-sidebar">
         <div className="lb-brand">
           <div className="lb-brand-icon">L</div>
-          <span>Life<span>Budget</span></span>
+          <span>
+            Life<span>Budget</span>
+          </span>
         </div>
 
         <div className="lb-nav-label">MENU</div>
@@ -182,15 +408,16 @@ export default function Website({ user, onLogout }) {
       <main className="lb-main">
         <header className="lb-header">
           <div>
-            <div className="lb-breadcrumb">
-              Pages / {activePage}
-            </div>
+            <div className="lb-breadcrumb">Pages / {activePage}</div>
             <h1>{activePage}</h1>
           </div>
 
           <div className="lb-header-actions">
             <div className="lb-month-select">
-              📅 November 2026
+              📅 {new Date().toLocaleDateString("en-GB", {
+                month: "long",
+                year: "numeric",
+              })}
             </div>
 
             <div className="lb-header-avatar">
@@ -198,6 +425,18 @@ export default function Website({ user, onLogout }) {
             </div>
           </div>
         </header>
+
+        {error && (
+          <div className="auth-error" role="alert">
+            ⚠ {error}
+          </div>
+        )}
+
+        {success && (
+          <div className="auth-success" role="status">
+            {success}
+          </div>
+        )}
 
         {activePage === "Dashboard" && (
           <>
@@ -207,10 +446,7 @@ export default function Website({ user, onLogout }) {
                 <p>Here's what's happening with your money today.</p>
               </div>
 
-              <button
-                className="lb-primary-button"
-                onClick={() => setShowModal(true)}
-              >
+              <button className="lb-primary-button" onClick={openAddModal}>
                 ＋ Add transaction
               </button>
             </section>
@@ -256,9 +492,7 @@ export default function Website({ user, onLogout }) {
                     <h3>Financial Overview</h3>
                     <p>Income vs expenses over time</p>
                   </div>
-                  <span className="lb-chart-period">
-                    Last 6 months
-                  </span>
+                  <span className="lb-chart-period">Last 6 months</span>
                 </div>
 
                 <div className="lb-chart-legend">
@@ -339,10 +573,16 @@ export default function Website({ user, onLogout }) {
                 </button>
               </div>
 
-              <TransactionTable
-                transactions={transactions.slice(0, 5)}
-                onDelete={deleteTransaction}
-              />
+              {loading ? (
+                <div className="lb-empty">Loading transactions...</div>
+              ) : (
+                <TransactionTable
+                  transactions={transactions.slice(0, 5)}
+                  onEdit={openEditModal}
+                  onDelete={deleteTransaction}
+                  deletingId={deletingId}
+                />
+              )}
             </section>
           </>
         )}
@@ -355,10 +595,7 @@ export default function Website({ user, onLogout }) {
                 <p>Manage your income and expenses.</p>
               </div>
 
-              <button
-                className="lb-primary-button"
-                onClick={() => setShowModal(true)}
-              >
+              <button className="lb-primary-button" onClick={openAddModal}>
                 ＋ Add transaction
               </button>
             </div>
@@ -380,10 +617,16 @@ export default function Website({ user, onLogout }) {
               </select>
             </div>
 
-            <TransactionTable
-              transactions={filteredTransactions}
-              onDelete={deleteTransaction}
-            />
+            {loading ? (
+              <div className="lb-empty">Loading transactions...</div>
+            ) : (
+              <TransactionTable
+                transactions={filteredTransactions}
+                onEdit={openEditModal}
+                onDelete={deleteTransaction}
+                deletingId={deletingId}
+              />
+            )}
           </section>
         )}
 
@@ -446,32 +689,43 @@ export default function Website({ user, onLogout }) {
       </main>
 
       {showModal && (
-        <div
-          className="lb-modal-overlay"
-          onClick={() => setShowModal(false)}
-        >
+        <div className="lb-modal-overlay" onClick={closeModal}>
           <form
             className="lb-modal"
-            onSubmit={addTransaction}
+            onSubmit={saveTransaction}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="lb-modal-header">
               <div>
-                <h2>Add Transaction</h2>
-                <p>Record your financial activity.</p>
+                <h2>
+                  {editingTransaction ? "Edit Transaction" : "Add Transaction"}
+                </h2>
+                <p>
+                  {editingTransaction
+                    ? "Update your financial activity."
+                    : "Record your financial activity."}
+                </p>
               </div>
 
               <button
                 type="button"
-                onClick={() => setShowModal(false)}
+                onClick={closeModal}
+                disabled={submitting}
               >
                 ✕
               </button>
             </div>
 
+            {error && (
+              <div className="auth-error" role="alert">
+                ⚠ {error}
+              </div>
+            )}
+
             <label>Transaction name</label>
             <input
               required
+              maxLength={100}
               placeholder="e.g. Grocery shopping"
               value={form.title}
               onChange={(e) =>
@@ -520,8 +774,40 @@ export default function Website({ user, onLogout }) {
               <option>Other</option>
             </select>
 
-            <button className="lb-primary-button lb-submit-button" type="submit">
-              Save transaction
+            <label>Description (optional)</label>
+            <textarea
+              rows="3"
+              maxLength={500}
+              placeholder="Add a note about this transaction"
+              value={form.description}
+              onChange={(e) =>
+                setForm({ ...form, description: e.target.value })
+              }
+            />
+
+            <label>Transaction date</label>
+            <input
+              type="date"
+              required
+              value={form.transaction_date}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  transaction_date: e.target.value,
+                })
+              }
+            />
+
+            <button
+              className="lb-primary-button lb-submit-button"
+              type="submit"
+              disabled={submitting}
+            >
+              {submitting
+                ? "Saving..."
+                : editingTransaction
+                  ? "Save Changes"
+                  : "Save Transaction"}
             </button>
           </form>
         </div>
@@ -544,9 +830,7 @@ function StatCard({ title, amount, icon, color, footer }) {
 }
 
 function BudgetItem({ budget, large = false }) {
-  const percentage = Math.round(
-    (budget.spent / budget.limit) * 100
-  );
+  const percentage = Math.round((budget.spent / budget.limit) * 100);
 
   return (
     <div className={large ? "lb-budget-large" : "lb-budget-item"}>
@@ -600,7 +884,12 @@ function ReportCard({ title, value }) {
   );
 }
 
-function TransactionTable({ transactions, onDelete }) {
+function TransactionTable({
+  transactions,
+  onEdit,
+  onDelete,
+  deletingId,
+}) {
   if (!transactions.length) {
     return <div className="lb-empty">No transactions found.</div>;
   }
@@ -638,23 +927,40 @@ function TransactionTable({ transactions, onDelete }) {
 
               <td>{transaction.date}</td>
 
-              <td className={
-                transaction.type === "income"
-                  ? "lb-income-text"
-                  : "lb-expense-text"
-              }>
+              <td
+                className={
+                  transaction.type === "income"
+                    ? "lb-income-text"
+                    : "lb-expense-text"
+                }
+              >
                 {transaction.type === "income" ? "+" : "-"}
                 {money(transaction.amount)}
               </td>
 
               <td>
-                <button
-                  className="lb-delete"
-                  onClick={() => onDelete(transaction.id)}
-                  title="Delete transaction"
-                >
-                  ×
-                </button>
+                <div className="lb-transaction-actions">
+                  <button
+                    type="button"
+                    className="lb-edit"
+                    onClick={() => onEdit(transaction)}
+                    title="Edit transaction"
+                    aria-label={`Edit ${transaction.title}`}
+                  >
+                    Edit
+                  </button>
+
+                  <button
+                    type="button"
+                    className="lb-delete"
+                    onClick={() => onDelete(transaction.id)}
+                    title="Delete transaction"
+                    aria-label={`Delete ${transaction.title}`}
+                    disabled={deletingId === transaction.id}
+                  >
+                    {deletingId === transaction.id ? "..." : "×"}
+                  </button>
+                </div>
               </td>
             </tr>
           ))}

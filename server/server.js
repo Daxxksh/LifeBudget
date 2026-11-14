@@ -8,6 +8,7 @@ const PgSession = require("connect-pg-simple")(session);
 
 const pool = require("./config/database");
 const authRoutes = require("./routes/authRoutes");
+const transactionRoutes = require("./routes/transactionRoutes");
 
 const app = express();
 
@@ -71,6 +72,9 @@ app.get("/api/health", async (req, res) => {
 
 // Authentication routes
 app.use("/api/auth", authRoutes);
+
+// Transaction routes
+app.use("/api/transactions", transactionRoutes);
 
 // Start server
 const PORT = process.env.PORT || 5000;
